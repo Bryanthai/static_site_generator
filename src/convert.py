@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 from textnode import TextNode, TextType
 from htmlnode import LeafNode, HTMLNode, ParentNode
 
@@ -45,4 +46,93 @@ def extract_markdown_link(text):
     return re.findall(r"(?<!!)\[(.*?)\]\((.*?)\)", text)
 
 def split_nodes_image(old_nodes):
-    pass
+    new_nodes = []
+    for node in old_nodes:
+        str = node.text
+        link_list = extract_markdown_images(node.text)
+        for image in link_list:
+            temp_list = str.split(f"![{image[0]}]({image[1]})")
+            new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
+            new_nodes.append(TextNode(image[0], TextType.IMAGE, image[1]))
+            str = temp_list[1]
+    return new_nodes
+
+def split_nodes_link(old_nodes):
+    new_nodes = []
+    for node in old_nodes:
+        str = node.text
+        link_list = extract_markdown_link(node.text)
+        for link in link_list:
+            temp_list = str.split(f"[{link[0]}]({link[1]})")
+            new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
+            new_nodes.append(TextNode(link[0], TextType.LINK, link[1]))
+            str = temp_list[1]
+    return new_nodes
+
+def text_to_textnodes(text):
+    new_node = TextNode(text, TextType.NORMAL_TEXT)
+    new_nodes = split_nodes_link(new_node)
+    new_nodes = split_nodes_image(new_nodes)
+    new_nodes = split_nodes_delimiter(new_nodes, "**", TextType.BOLD_TEXT)
+    new_nodes = split_nodes_delimiter(new_nodes, "_", TextType.ITALIC_TEXT)
+    new_nodes = split_nodes_delimiter(new_nodes, "`", TextType.CODE_TEXT)
+    return new_nodes
+
+def markdown_to_block(markdown):
+    block_list = []
+    new_list = markdown.split("\n\n")
+    for block in new_list:
+        block.strip()
+        if block != "":
+            block_list.append(block)
+    return block_list
+
+class BlockType(Enum):
+    PARAGRAPH = "paragraph"
+    HEADING = "heading"
+    CODE = "code"
+    QUOTE = "quote"
+    UNORDERED_LIST = "unordered_list"
+    ORDERED_LIST = "ordered_list"
+
+def checkheader(text):
+    if re.findall(r"^\#{1,6} ", text) == []:
+        return False
+    return True
+
+def check_list_num(text):
+    list = re.findall(r"\d+. ", text)
+    if list == []:
+        return False
+    for i in range (1, len(list)+1):
+        if f"{i}. " != list[i-1]:
+            return False
+    return True
+
+def checkforlinequote(text):
+    list = text.split("\n")
+    for str in list:
+        if str.startswith(">") == False:
+            return False
+    return True
+
+def checkforlineul(text):
+    list = text.split("\n")
+    for str in list:
+        if str.startswith("- ") == False:
+            return False
+    return True
+
+
+def block_to_block_type(block):
+    if checkforlinequote(block):
+        return BlockType.QUOTE
+    if checkforlineul(block):
+        return BlockType.UNORDERED_LIST
+    if block.startswith("\"\"\"") and block.endswith("\"\"\""):
+        return BlockType.UNORDERED_LIST
+    if checkheader(block):
+        return BlockType.HEADING
+    if check_list_num(block):
+        return BlockType.ORDERED_LIST
+    return BlockType.PARAGRAPH

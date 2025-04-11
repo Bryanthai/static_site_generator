@@ -1,6 +1,6 @@
 import unittest
 
-from convert import text_node_to_html_node, split_nodes_delimiter, extract_markdown_images, extract_markdown_link
+from convert import *
 from textnode import TextNode, TextType
 from htmlnode import LeafNode, HTMLNode, ParentNode
 
@@ -78,8 +78,140 @@ class TestHTMLNode(unittest.TestCase):
         )
         self.assertListEqual([("image", "https://i.imgur.com/zjjcJKZ.png")], matches)
 
-    def test_extract_markdown_link(self):
+    def test_extract_markdown_link_2(self):
         matches = extract_markdown_link(
             "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png)"
         )
         self.assertListEqual([], matches)
+
+    def test_split_images(self):
+        node = TextNode(
+            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png) and another ![second image](https://i.imgur.com/3elNhQu.png)",
+            TextType.NORMAL_TEXT,
+        )
+        new_nodes = split_nodes_image([node])
+        self.assertListEqual(
+            [
+                TextNode("This is text with an ", TextType.NORMAL_TEXT),
+                TextNode("image", TextType.IMAGE, "https://i.imgur.com/zjjcJKZ.png"),
+                TextNode(" and another ", TextType.NORMAL_TEXT),
+                TextNode("second image", TextType.IMAGE, "https://i.imgur.com/3elNhQu.png")
+            ],
+            new_nodes,
+        )
+
+    def test_split_images_2(self):
+        node = TextNode(
+            "This is text with an ![text](cockballs) and another ![second image](https://i.imgur.com/3elNhQu.png)",
+            TextType.NORMAL_TEXT,
+        )
+        new_nodes = split_nodes_image([node])
+        self.assertListEqual(
+            [
+                TextNode("This is text with an ", TextType.NORMAL_TEXT),
+                TextNode("text", TextType.IMAGE, "cockballs"),
+                TextNode(" and another ", TextType.NORMAL_TEXT),
+                TextNode("second image", TextType.IMAGE, "https://i.imgur.com/3elNhQu.png")
+            ],
+            new_nodes,
+        )
+
+    def test_split_link(self):
+        node = TextNode(
+            "This is text with an [text](cock) and another [second image](https://i.imgur.com/3elNhQu.png)",
+            TextType.NORMAL_TEXT,
+        )
+        new_nodes = split_nodes_link([node])
+        self.assertListEqual(
+            [
+                TextNode("This is text with an ", TextType.NORMAL_TEXT),
+                TextNode("text", TextType.LINK, "cock"),
+                TextNode(" and another ", TextType.NORMAL_TEXT),
+                TextNode("second image", TextType.LINK, "https://i.imgur.com/3elNhQu.png")
+            ],
+            new_nodes,
+        )
+
+    def test_split_link_2(self):
+        node = TextNode(
+            "This is text with an ![text](cock) and another ![second image](https://i.imgur.com/3elNhQu.png)",
+            TextType.NORMAL_TEXT,
+        )
+        new_nodes = split_nodes_link([node])
+        self.assertListEqual([], new_nodes)
+
+    def text_text_to_textnodes(self):
+        text = "This is **text** with an _italic_ word and a `code block` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
+        check_list = [
+                        TextNode("This is ", TextType.TEXT),
+                        TextNode("text", TextType.BOLD),
+                        TextNode(" with an ", TextType.TEXT),
+                        TextNode("italic", TextType.ITALIC),
+                        TextNode(" word and a ", TextType.TEXT),
+                        TextNode("code block", TextType.CODE),
+                        TextNode(" and an ", TextType.TEXT),
+                        TextNode("obi wan image", TextType.IMAGE, "https://i.imgur.com/fJRm4Vk.jpeg"),
+                        TextNode(" and a ", TextType.TEXT),
+                        TextNode("link", TextType.LINK, "https://boot.dev"),
+                    ]
+        output_list = text_to_textnodes(text)
+        self.assertEqual(check_list, output_list)
+
+    def test_markdown_to_blocks(self):
+        md = """This is **bolded** paragraph
+
+This is another paragraph with _italic_ text and `code` here
+This is the same paragraph on a new line
+
+- This is a list
+- with items"""
+        blocks = markdown_to_block(md)
+        self.assertEqual(
+            blocks,
+            [
+                "This is **bolded** paragraph",
+                "This is another paragraph with _italic_ text and `code` here\nThis is the same paragraph on a new line",
+                "- This is a list\n- with items",
+            ],
+        )
+    
+    def test_check_ordered_list(self):
+        test = """1. lmao
+        2. cock
+        3. balls
+        """
+        tf = check_list_num(test)
+        self.assertEqual(tf, True)
+
+    def test_check_ordered_list_2(self):
+        test = "nigger"
+        tf = check_list_num(test)
+        self.assertEqual(tf, False)
+
+    def test_blocktype_1(self):
+        test = """1. lmao
+        2. cock
+        """
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.ORDERED_LIST)
+
+    def test_blocktype_2(self):
+        test = """1. lmao
+        2. cock
+        """
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.ORDERED_LIST)
+    
+    def test_blocktype_3(self):
+        test = """> lmao
+        > cock
+        """
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.QUOTE)
+
+    def test_blocktype_4(self):
+        test = """- lmao
+        - cock
+        """
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.UNORDERED_LIST)
