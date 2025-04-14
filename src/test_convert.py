@@ -1,5 +1,5 @@
 import unittest
-
+import textwrap
 from convert import *
 from textnode import TextNode, TextType
 from htmlnode import LeafNode, HTMLNode, ParentNode
@@ -121,7 +121,7 @@ class TestHTMLNode(unittest.TestCase):
             "This is text with an [text](cock) and another [second image](https://i.imgur.com/3elNhQu.png)",
             TextType.NORMAL_TEXT,
         )
-        new_nodes = split_nodes_link([node])
+        new_nodes = split_nodes_link(node)
         self.assertListEqual(
             [
                 TextNode("This is text with an ", TextType.NORMAL_TEXT),
@@ -137,11 +137,11 @@ class TestHTMLNode(unittest.TestCase):
             "This is text with an ![text](cock) and another ![second image](https://i.imgur.com/3elNhQu.png)",
             TextType.NORMAL_TEXT,
         )
-        new_nodes = split_nodes_link([node])
-        self.assertListEqual([], new_nodes)
+        new_nodes = split_nodes_link(node)
+        self.assertListEqual([TextNode("This is text with an ![text](cock) and another ![second image](https://i.imgur.com/3elNhQu.png)", TextType.NORMAL_TEXT)], new_nodes)
 
     def text_text_to_textnodes(self):
-        text = "This is **text** with an _italic_ word and a `code block` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
+        text = "This is **text** with an _italic_ word and a ```code block``` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
         check_list = [
                         TextNode("This is ", TextType.TEXT),
                         TextNode("text", TextType.BOLD),
@@ -160,7 +160,7 @@ class TestHTMLNode(unittest.TestCase):
     def test_markdown_to_blocks(self):
         md = """This is **bolded** paragraph
 
-This is another paragraph with _italic_ text and `code` here
+This is another paragraph with _italic_ text and ```code``` here
 This is the same paragraph on a new line
 
 - This is a list
@@ -170,7 +170,7 @@ This is the same paragraph on a new line
             blocks,
             [
                 "This is **bolded** paragraph",
-                "This is another paragraph with _italic_ text and `code` here\nThis is the same paragraph on a new line",
+                "This is another paragraph with _italic_ text and ```code``` here\nThis is the same paragraph on a new line",
                 "- This is a list\n- with items",
             ],
         )
@@ -197,21 +197,85 @@ This is the same paragraph on a new line
 
     def test_blocktype_2(self):
         test = """1. lmao
-        2. cock
+        30. cock
         """
         type = block_to_block_type(test)
-        self.assertEqual(type, BlockType.ORDERED_LIST)
+        self.assertEqual(type, BlockType.PARAGRAPH)
     
     def test_blocktype_3(self):
-        test = """> lmao
-        > cock
-        """
+        test = textwrap.dedent("""\
+            > lmao
+            > cock""")
         type = block_to_block_type(test)
         self.assertEqual(type, BlockType.QUOTE)
 
     def test_blocktype_4(self):
-        test = """- lmao
-        - cock
-        """
+        test = textwrap.dedent("""\
+            - lmao
+            - cock""")
         type = block_to_block_type(test)
         self.assertEqual(type, BlockType.UNORDERED_LIST)
+
+    def test_blocktype_5(self):
+        test = textwrap.dedent("""\"\"\"\
+                               for int in list:
+                               cook his ass.
+                               \"\"\"""")
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.CODE)
+
+    def test_blocktype_6(self):
+        test = "#### cock and bllas"
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.HEADING)
+
+    def test_checklinequote(self):
+        test = "> quote"
+        isquote = checkforlinequote(test)
+        self.assertEqual(isquote, True)
+
+    def test_checklinequote_2(self):
+        test = textwrap.dedent("""\
+        > quote
+        > quote 2
+        > quote 3""")
+        isquote = checkforlinequote(test)
+        self.assertEqual(isquote, True)
+    
+    def test_checklinequote_3(self):
+        test = textwrap.dedent("""\
+            > quote
+            > quote 2
+             > quote 3""")
+        isquote = checkforlinequote(test)
+        self.assertEqual(isquote, False)
+
+    def test_paragraphs(self):
+        md = textwrap.dedent("""\
+                               This is **bolded** paragraph
+                               text in a p
+                               tag here
+
+                               This is another paragraph with _italic_ text and `code` here""")
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        html = re.sub("\n", " ", html)
+        self.assertEqual(
+            html,
+            "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>"
+        )
+
+    def test_codeblocks(self):
+        md = """
+        ```
+        This is text that _should_ remain
+        the **same** even with inline stuff
+        ```
+        """
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        print(html)
+        self.assertEqual(
+            html,
+            "<div><pre><code>This is text that _should_ remain\nthe **same** even with inline stuff\n</code></pre></div>"
+        )

@@ -24,8 +24,8 @@ class TestHTMLNode(unittest.TestCase):
         self.assertEqual(node.to_html(), "<a href=\"www.cbt.com\">Hello, world!</a>")
 
     def test_func_leaf_to_html_img(self):
-        node = LeafNode(tag="img", value="Hello, world!", props={"src":"./xd", "alt":"alt text"})
-        self.assertEqual(node.to_html(), "<img src=\"./xd\" alt=\"alt text\">Hello, world!</img>")
+        node = LeafNode(tag="img", value="Hello, world!", props={"src":"./xd"})
+        self.assertEqual(node.to_html(), "<img src=\"./xd\">Hello, world!</img>")
 
     def test_func_to_html_with_children(self):
         child_node = LeafNode(tag="span", value="child")

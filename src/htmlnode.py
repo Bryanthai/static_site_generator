@@ -35,9 +35,7 @@ class LeafNode(HTMLNode):
         elif self.tag == "img":
             if self.props["src"] == None:
                 raise ValueError("This link doesnt have a src")
-            if self.props["alt"] == None:
-                raise ValueError("This link doesnt have a alt text")
-            return f"<{self.tag} src=\"{self.props["src"]}\" alt=\"{self.props["alt"]}\">{self.value}</{self.tag}>"
+            return f"<{self.tag} src=\"{self.props["src"]}\">{self.value}</{self.tag}>"
         else:
             return f"<{self.tag}>{self.value}</{self.tag}>"
         

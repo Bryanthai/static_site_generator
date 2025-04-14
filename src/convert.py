@@ -1,4 +1,5 @@
 import re
+import textwrap
 from enum import Enum
 from textnode import TextNode, TextType
 from htmlnode import LeafNode, HTMLNode, ParentNode
@@ -13,9 +14,9 @@ def text_node_to_html_node(text_node):
     elif text_node.text_type == TextType.CODE_TEXT:
         return LeafNode(tag="code", value=text_node.text)
     elif text_node.text_type == TextType.LINK:
-        return LeafNode(tag="a", value=text_node.text, props={"href":f"{text_node.url["href"]}"})
+        return LeafNode(tag="a", value=text_node.text, props={"href":text_node.url})
     elif text_node.text_type == TextType.IMAGE:
-        return LeafNode(tag="img", value=text_node.text, props={"src":f"{text_node.url["src"]}", "alt":f"{text_node.url["alt"]}"})
+        return LeafNode(tag="img", value=text_node.text, props={"src":text_node.url})
     
 def split_nodes_delimiter(old_nodes, delimiter, text_type):
     new_nodes = []
@@ -50,6 +51,8 @@ def split_nodes_image(old_nodes):
     for node in old_nodes:
         str = node.text
         link_list = extract_markdown_images(node.text)
+        if link_list == []:
+            new_nodes.append(node)
         for image in link_list:
             temp_list = str.split(f"![{image[0]}]({image[1]})")
             new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
@@ -57,16 +60,17 @@ def split_nodes_image(old_nodes):
             str = temp_list[1]
     return new_nodes
 
-def split_nodes_link(old_nodes):
+def split_nodes_link(node):
     new_nodes = []
-    for node in old_nodes:
-        str = node.text
-        link_list = extract_markdown_link(node.text)
-        for link in link_list:
-            temp_list = str.split(f"[{link[0]}]({link[1]})")
-            new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
-            new_nodes.append(TextNode(link[0], TextType.LINK, link[1]))
-            str = temp_list[1]
+    str = node.text
+    link_list = extract_markdown_link(node.text)
+    if link_list == []:
+        new_nodes.append(node)
+    for link in link_list:
+        temp_list = str.split(f"[{link[0]}]({link[1]})")
+        new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
+        new_nodes.append(TextNode(link[0], TextType.LINK, link[1]))
+        str = temp_list[1]
     return new_nodes
 
 def text_to_textnodes(text):
@@ -75,6 +79,7 @@ def text_to_textnodes(text):
     new_nodes = split_nodes_image(new_nodes)
     new_nodes = split_nodes_delimiter(new_nodes, "**", TextType.BOLD_TEXT)
     new_nodes = split_nodes_delimiter(new_nodes, "_", TextType.ITALIC_TEXT)
+    new_nodes = split_nodes_delimiter(new_nodes, "```", TextType.CODE_TEXT)
     new_nodes = split_nodes_delimiter(new_nodes, "`", TextType.CODE_TEXT)
     return new_nodes
 
@@ -112,6 +117,8 @@ def check_list_num(text):
 def checkforlinequote(text):
     list = text.split("\n")
     for str in list:
+        if str == "":
+            continue
         if str.startswith(">") == False:
             return False
     return True
@@ -119,6 +126,9 @@ def checkforlinequote(text):
 def checkforlineul(text):
     list = text.split("\n")
     for str in list:
+        str = str.strip()
+        if str == "":
+            continue
         if str.startswith("- ") == False:
             return False
     return True
@@ -130,9 +140,71 @@ def block_to_block_type(block):
     if checkforlineul(block):
         return BlockType.UNORDERED_LIST
     if block.startswith("\"\"\"") and block.endswith("\"\"\""):
-        return BlockType.UNORDERED_LIST
+        return BlockType.CODE
     if checkheader(block):
         return BlockType.HEADING
     if check_list_num(block):
         return BlockType.ORDERED_LIST
     return BlockType.PARAGRAPH
+
+def strip_ordered_list_left(text):
+    return re.sub(r"\d+. ", "", text, 1)
+
+def text_to_children(text, block_type):
+    if block_type == BlockType.CODE:
+        tnode = TextNode(text, TextType.CODE_TEXT)
+        hnode = text_node_to_html_node(tnode)
+        return hnode
+    elif block_type == BlockType.ORDERED_LIST:
+        text_list = text.split("\n")
+        parent_node = ParentNode("ol", [])
+        for text in text_list:
+            text = strip_ordered_list_left(text)
+            tnodes_list = text_to_textnodes(text)
+            hnode_list = []
+            for tnode in tnodes_list:
+                hnode_list.append(text_node_to_html_node(tnode))
+            new_pnode = ParentNode("li", hnode_list)
+            parent_node.children.append(new_pnode)
+        return parent_node
+    elif block_type == BlockType.UNORDERED_LIST:
+        text_list = text.split("\n")
+        parent_node = ParentNode("ul", [])
+        for text in text_list:
+            text.lstrip("- ")
+            tnodes_list = text_to_textnodes(text)
+            hnode_list = []
+            for tnode in tnodes_list:
+                hnode_list.append(text_node_to_html_node(tnode))
+            new_pnode = ParentNode("li", hnode_list)
+            parent_node.children.append(new_pnode)
+        return parent_node
+    elif block_type == BlockType.QUOTE:
+        text_list = text.split("\n")
+        parent_node = ParentNode("blockquote", [])
+        for text in text_list:
+            text.lstrip("> ")
+            tnodes_list = text_to_textnodes(text)
+            hnode_list = []
+            for tnode in tnodes_list:
+                hnode_list.append(text_node_to_html_node(tnode))
+            new_pnode = ParentNode("q", hnode_list)
+            parent_node.children.append(new_pnode)
+        return parent_node
+    elif block_type == BlockType.PARAGRAPH:
+        tnodes_list = text_to_textnodes(text)
+        parent_node = ParentNode("p", [])
+        for tnode in tnodes_list:
+            parent_node.children.append(text_node_to_html_node(tnode))
+        return parent_node
+
+def markdown_to_html_node(markdown):
+    blocks = markdown_to_block(markdown)
+    new_list = []
+    root_node = ParentNode("div", [])
+    for block in blocks:
+        block_type = block_to_block_type(block)
+        pnode = text_to_children(block, block_type)
+        new_list.append(pnode)
+    root_node.children = new_list
+    return root_node
