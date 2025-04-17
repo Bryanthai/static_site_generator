@@ -66,6 +66,30 @@ class TestHTMLNode(unittest.TestCase):
         test_list = []
         self.assertEqual(new_nodes, test_list)
 
+    def test_split_7(self):
+        text = textwrap.dedent("""\
+                               **This is bolded
+                               this is in the newline**
+                               this is not bolded""")
+        node = TextNode(text, TextType.NORMAL_TEXT)
+        new_nodes = split_nodes_delimiter([node], "**", TextType.BOLD_TEXT)
+        test_list = [TextNode("""This is bolded
+this is in the newline""", TextType.BOLD_TEXT),
+        TextNode("\nthis is not bolded", TextType.NORMAL_TEXT)]
+        self.assertEqual(new_nodes, test_list)
+
+    def test_split_8(self):
+        text = textwrap.dedent("""\
+                               ```This is bolded
+                               this is in the newline```
+                               this is not bolded""")
+        node = TextNode(text, TextType.NORMAL_TEXT)
+        new_nodes = split_nodes_delimiter([node], "```", TextType.CODE_TEXT)
+        test_list = [TextNode("""This is bolded
+this is in the newline""", TextType.CODE_TEXT),
+        TextNode("\nthis is not bolded", TextType.NORMAL_TEXT)]
+        self.assertEqual(new_nodes, test_list)
+
     def test_extract_markdown_images(self):
         matches = extract_markdown_images(
             "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png)"
@@ -140,18 +164,18 @@ class TestHTMLNode(unittest.TestCase):
         new_nodes = split_nodes_link(node)
         self.assertListEqual([TextNode("This is text with an ![text](cock) and another ![second image](https://i.imgur.com/3elNhQu.png)", TextType.NORMAL_TEXT)], new_nodes)
 
-    def text_text_to_textnodes(self):
+    def text_text_to_textnodes_new(self):
         text = "This is **text** with an _italic_ word and a ```code block``` and an ![obi wan image](https://i.imgur.com/fJRm4Vk.jpeg) and a [link](https://boot.dev)"
         check_list = [
-                        TextNode("This is ", TextType.TEXT),
-                        TextNode("text", TextType.BOLD),
-                        TextNode(" with an ", TextType.TEXT),
-                        TextNode("italic", TextType.ITALIC),
-                        TextNode(" word and a ", TextType.TEXT),
-                        TextNode("code block", TextType.CODE),
-                        TextNode(" and an ", TextType.TEXT),
+                        TextNode("This is ", TextType.NORMAL_TEXT),
+                        TextNode("text", TextType.BOLD_TEXT),
+                        TextNode(" with an ", TextType.NORMAL_TEXT),
+                        TextNode("italic", TextType.ITALIC_TEXT),
+                        TextNode(" word and a ", TextType.NORMAL_TEXT),
+                        TextNode("code block", TextType.CODE_TEXT),
+                        TextNode(" and an ", TextType.NORMAL_TEXT),
                         TextNode("obi wan image", TextType.IMAGE, "https://i.imgur.com/fJRm4Vk.jpeg"),
-                        TextNode(" and a ", TextType.TEXT),
+                        TextNode(" and a ", TextType.NORMAL_TEXT),
                         TextNode("link", TextType.LINK, "https://boot.dev"),
                     ]
         output_list = text_to_textnodes(text)
@@ -217,15 +241,20 @@ This is the same paragraph on a new line
         self.assertEqual(type, BlockType.UNORDERED_LIST)
 
     def test_blocktype_5(self):
-        test = textwrap.dedent("""\"\"\"\
+        test = textwrap.dedent("""```\
                                for int in list:
                                cook his ass.
-                               \"\"\"""")
+                               ```""")
         type = block_to_block_type(test)
         self.assertEqual(type, BlockType.CODE)
 
     def test_blocktype_6(self):
         test = "#### cock and bllas"
+        type = block_to_block_type(test)
+        self.assertEqual(type, BlockType.HEADING)
+
+    def test_blocktype_7(self):
+        test = "# cock and bllas"
         type = block_to_block_type(test)
         self.assertEqual(type, BlockType.HEADING)
 
@@ -259,23 +288,82 @@ This is the same paragraph on a new line
                                This is another paragraph with _italic_ text and `code` here""")
         node = markdown_to_html_node(md)
         html = node.to_html()
-        html = re.sub("\n", " ", html)
         self.assertEqual(
             html,
             "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>"
         )
 
     def test_codeblocks(self):
-        md = """
-        ```
-        This is text that _should_ remain
-        the **same** even with inline stuff
-        ```
-        """
+        md = textwrap.dedent("""\
+                             ```
+                             This is text that _should_ remain
+                             the **same** even with inline stuff
+                             ```""")
         node = markdown_to_html_node(md)
         html = node.to_html()
-        print(html)
         self.assertEqual(
             html,
             "<div><pre><code>This is text that _should_ remain\nthe **same** even with inline stuff\n</code></pre></div>"
         )
+    
+    def test_ol(self):
+        md = textwrap.dedent("""\
+                             1. This is list 1
+                             2. This is list 2
+                             """)
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><ol><li>This is list 1</li><li>This is list 2</li></ol></div>"
+        )
+
+    def test_ul(self):
+        md = textwrap.dedent("""\
+                             - This is list 1
+                             - This is list 2
+                             
+                             """)
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><ul><li>This is list 1</li><li>This is list 2</li></ul></div>"
+        )
+
+    def test_q(self):
+        md = textwrap.dedent("""\
+                             > "I am in fact a Hobbit in all but size."
+                             >
+                             > -- J.R.R. Tolkien
+                             """)
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><blockquote>\"I am in fact a Hobbit in all but size.\"-- J.R.R. Tolkien</blockquote></div>"
+        )
+
+    def test_headings(self):
+        md = textwrap.dedent("""\
+                               ## This is **bolded** header
+                             
+                               text in a p
+                               tag here
+
+                               This is another paragraph with _italic_ text and `code` here""")
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><h1>This is <b>bolded</b> header</h1><p>text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>"
+        )
+
+    def test_extract_title(self):
+        line = textwrap.dedent("""\
+                               # This is the header
+                               
+                               ## This is not a header""")
+        test = extract_title(line)
+        ans = "This is the header"
+        self.assertEqual(ans, test)

@@ -56,7 +56,7 @@ def split_nodes_image(old_nodes):
         for image in link_list:
             temp_list = str.split(f"![{image[0]}]({image[1]})")
             new_nodes.append(TextNode(temp_list[0], TextType.NORMAL_TEXT))
-            new_nodes.append(TextNode(image[0], TextType.IMAGE, image[1]))
+            new_nodes.append(TextNode("", TextType.IMAGE, image[1]))
             str = temp_list[1]
     return new_nodes
 
@@ -139,7 +139,7 @@ def block_to_block_type(block):
         return BlockType.QUOTE
     if checkforlineul(block):
         return BlockType.UNORDERED_LIST
-    if block.startswith("\"\"\"") and block.endswith("\"\"\""):
+    if block.startswith("```") and block.endswith("```"):
         return BlockType.CODE
     if checkheader(block):
         return BlockType.HEADING
@@ -152,14 +152,25 @@ def strip_ordered_list_left(text):
 
 def text_to_children(text, block_type):
     if block_type == BlockType.CODE:
+        parent_node = ParentNode("pre", [])
+        if text.endswith("````"):
+            raise Exception("Invalid markdown syntax")
+        text = text.strip("`")
+        text = text.lstrip()
         tnode = TextNode(text, TextType.CODE_TEXT)
         hnode = text_node_to_html_node(tnode)
-        return hnode
+        parent_node.children.append(hnode)
+        return parent_node
     elif block_type == BlockType.ORDERED_LIST:
         text_list = text.split("\n")
+        if text_list[-1] == "":
+            text_list.pop()
         parent_node = ParentNode("ol", [])
         for text in text_list:
+            if text == "":
+                continue
             text = strip_ordered_list_left(text)
+            text = re.sub("\n", " ", text)
             tnodes_list = text_to_textnodes(text)
             hnode_list = []
             for tnode in tnodes_list:
@@ -169,9 +180,12 @@ def text_to_children(text, block_type):
         return parent_node
     elif block_type == BlockType.UNORDERED_LIST:
         text_list = text.split("\n")
+        if text_list[-1] == "":
+            text_list.pop()
         parent_node = ParentNode("ul", [])
         for text in text_list:
-            text.lstrip("- ")
+            text = text.lstrip("- ")
+            text = re.sub("\n", " ", text)
             tnodes_list = text_to_textnodes(text)
             hnode_list = []
             for tnode in tnodes_list:
@@ -183,15 +197,25 @@ def text_to_children(text, block_type):
         text_list = text.split("\n")
         parent_node = ParentNode("blockquote", [])
         for text in text_list:
-            text.lstrip("> ")
+            text = text.lstrip("> ")
+            text = re.sub("\n", " ", text)
+            if text == "":
+                parent_node.children.append(LeafNode(" "))
+                continue
             tnodes_list = text_to_textnodes(text)
-            hnode_list = []
             for tnode in tnodes_list:
-                hnode_list.append(text_node_to_html_node(tnode))
-            new_pnode = ParentNode("q", hnode_list)
-            parent_node.children.append(new_pnode)
+                parent_node.children.append(text_node_to_html_node(tnode))
+        return parent_node
+    elif block_type == BlockType.HEADING:
+        text = text.lstrip("# ")
+        text = re.sub("\n", " ", text)
+        tnodes_list = text_to_textnodes(text)
+        parent_node = ParentNode("h1", [])
+        for tnode in tnodes_list:
+            parent_node.children.append(text_node_to_html_node(tnode))
         return parent_node
     elif block_type == BlockType.PARAGRAPH:
+        text = re.sub("\n", " ", text)
         tnodes_list = text_to_textnodes(text)
         parent_node = ParentNode("p", [])
         for tnode in tnodes_list:
@@ -208,3 +232,10 @@ def markdown_to_html_node(markdown):
         new_list.append(pnode)
     root_node.children = new_list
     return root_node
+
+def extract_title(markdown):
+    block_list = markdown_to_block(markdown)
+    for block in block_list:
+        if block.startswith("# "):
+            return block.lstrip("# ")
+    raise Exception("Header required in markdown file")

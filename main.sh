@@ -1,3 +1,2 @@
 python ./src/main.py
-
-# hello world
+cd public && python3 -m http.server 8888

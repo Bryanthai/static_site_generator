@@ -1,5 +1,5 @@
 class HTMLNode:
-    def __init__(self, tag = None , value = None, children = None, props = None):
+    def __init__(self, tag = None , value = None, children = [], props = None):
         self.tag = tag
         self.value = value
         self.children = children
@@ -46,7 +46,7 @@ class ParentNode(HTMLNode):
     def to_html(self):
         if self.tag == None:
             raise ValueError("There is no tag in this parent node")
-        if self.children == None:
+        if self.children == []:
             raise ValueError("There is no value in this parent node")
         str = ""
         for child in self.children:
