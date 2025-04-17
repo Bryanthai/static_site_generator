@@ -43,10 +43,24 @@ def generate_page(from_path, template_path, dest_path):
     d.write(content_change)
     return
 
+def generate_page_recursive(template_path, current_path):
+    content_list = os.listdir(os.path.join("content", current_path))
+    for content in content_list:
+        static_content = os.path.join("content", current_path,  content)
+        if os.path.isdir(static_content):
+            public_path = os.path.join("public", current_path, content)
+            os.mkdir(public_path)
+            generate_page_recursive(template_path, os.path.join(current_path, content))
+        elif static_content.endswith(".md"):
+            html_content = re.sub(".md", ".html", content)
+            public_path = os.path.join("public", current_path, html_content)
+            generate_page(static_content, template_path, public_path)
+    return
+
 def main():
     nuke_public_initialize()
     initialize("")
-    generate_page("content/index.md", "template.html", "public/index.html")
+    generate_page_recursive("template.html", "")
 
 
 main()
